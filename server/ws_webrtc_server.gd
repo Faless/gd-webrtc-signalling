@@ -3,7 +3,10 @@ extends Node
 var server : WebSocketServer = WebSocketServer.new()
 var peers : Array = []
 
+signal identify(id, data)
+
 func listen(port : int):
+	server = WebSocketServer.new()
 	server.connect("data_received", self, "_parse_msg")
 	server.connect("client_connected", self, "_peer_connected")
 	server.connect("client_disconnected", self, "_peer_disconnected")
@@ -13,14 +16,21 @@ func stop():
 	server.stop()
 	peers.clear()
 
+func poll():
+	if server.is_listening():
+		server.poll()
+
 func _peer_connected(id : int, protocol = ""):
+	server.get_peer(id).put_packet(("I: %d\n" % id).to_utf8())
 	for p in peers:
-		server.get_peer(p).put_packet(("C: %d\n" % id).to_utf8())
+		var peer : WebSocketPeer = server.get_peer(p)
+		peer.put_packet(("C: %d\n" % id).to_utf8())
 	peers.append(id)
 
 func _peer_disconnected(id : int, was_clean : bool = false):
 	for p in peers:
-		server.get_peer(p).put_packet(("D: %d\n" % id).to_utf8())
+		var peer : WebSocketPeer = server.get_peer(p)
+		peer.put_packet(("D: %d\n" % id).to_utf8())
 	peers.erase(id)
 
 func _parse_msg(id : int):

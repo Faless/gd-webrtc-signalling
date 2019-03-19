@@ -2,16 +2,25 @@ extends Node
 
 var client : WebSocketClient = WebSocketClient.new()
 
-# Called when the node enters the scene tree for the first time.
-func _ready():
-	pass
+signal connected(id)
+signal disconnected()
+signal peer_connected(id)
+signal peer_disconnected(id)
+signal offer_received(id, offer)
+signal answer_received(id, answer)
 
 func connect_to_url(url : String):
+	client = WebSocketClient.new()
 	client.connect("data_received", self, "_parse_msg")
+	client.connect("connection_closed", self, "_closed")
+	client.connect("connection_failed", self, "_closed")
 	client.connect_to_url(url)
 
 func close():
 	client.disconnect_from_host()
+
+func _closed(was_clean : bool = false):
+	emit_signal("disconnected")
 
 func _parse_msg():
 	var pkt_str : String = client.get_peer(1).get_packet().get_string_from_utf8()
@@ -30,7 +39,9 @@ func _parse_msg():
 
 	var src_id : int = int(src_str)
 
-	if type.begins_with("C: "):
+	if type.begins_with("I: "):
+		emit_signal("connected", src_id)
+	elif type.begins_with("C: "):
 		# Client connected
 		emit_signal("peer_connected", src_id)
 	elif type.begins_with("D: "):
@@ -43,13 +54,14 @@ func _parse_msg():
 		# Answer received
 		emit_signal("answer_received", src_id, req[1])
 
-func send_offer(id : int, offer : String):
-	client.get_peer(1).put_packet(str(id).to_utf8())
-	client.get_peer(1).put_packet(offer.to_utf8())
+func send_offer(id : int, offer : String) -> int:
+	return _send_msg("O", id, offer)
 
-func send_answer(id : int, answer : String):
-	client.get_peer(1).put_packet(str(id).to_utf8())
-	client.get_peer(1).put_packet(answer.to_utf8())
+func send_answer(id : int, answer : String) -> int:
+	return _send_msg("A", id, answer)
+
+func _send_msg(type : String, id : int, data : String) -> int:
+	return client.get_peer(1).put_packet(("%s: %d\n%s" % [type, id, data]).to_utf8())
 
 func _process(delta):
 	var status : int = client.get_connection_status()
