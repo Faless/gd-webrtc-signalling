@@ -21,14 +21,18 @@ func poll():
 		server.poll()
 
 func _peer_connected(id : int, protocol = ""):
+	var new_peer : WebSocketPeer = server.get_peer(id)
 	server.get_peer(id).put_packet(("I: %d\n" % id).to_utf8())
 	for p in peers:
 		var peer : WebSocketPeer = server.get_peer(p)
-		peer.put_packet(("C: %d\n" % id).to_utf8())
+		peer.put_packet(("N: %d\n" % id).to_utf8())
+		new_peer.put_packet(("N: %d\n" % p).to_utf8())
 	peers.append(id)
 
 func _peer_disconnected(id : int, was_clean : bool = false):
 	for p in peers:
+		if p == id:
+			continue
 		var peer : WebSocketPeer = server.get_peer(p)
 		peer.put_packet(("D: %d\n" % id).to_utf8())
 	peers.erase(id)
@@ -58,6 +62,9 @@ func _parse_msg(id : int):
 	elif type.begins_with("A: "):
 		# Client is making an answer
 		server.get_peer(dest_id).put_packet(("A: %d\n%s" % [id, req[1]]).to_utf8())
+	elif type.begins_with("C: "):
+		# Client is making an answer
+		server.get_peer(dest_id).put_packet(("C: %d\n%s" % [id, req[1]]).to_utf8())
 
 func _process(delta):
 	if server.is_listening():

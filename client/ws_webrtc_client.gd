@@ -8,6 +8,7 @@ signal peer_connected(id)
 signal peer_disconnected(id)
 signal offer_received(id, offer)
 signal answer_received(id, answer)
+signal candidate_received(id, mid, index, sdp)
 
 func connect_to_url(url : String):
 	client = WebSocketClient.new()
@@ -41,7 +42,7 @@ func _parse_msg():
 
 	if type.begins_with("I: "):
 		emit_signal("connected", src_id)
-	elif type.begins_with("C: "):
+	elif type.begins_with("N: "):
 		# Client connected
 		emit_signal("peer_connected", src_id)
 	elif type.begins_with("D: "):
@@ -53,6 +54,17 @@ func _parse_msg():
 	elif type.begins_with("A: "):
 		# Answer received
 		emit_signal("answer_received", src_id, req[1])
+	elif type.begins_with("C: "):
+		# Candidate received
+		var candidate : PoolStringArray = req[1].split('\n', false)
+		if candidate.size() != 3:
+			return
+		if not candidate[1].is_valid_integer():
+			return
+		emit_signal("candidate_received", src_id, candidate[0], int(candidate[1]), candidate[2])
+
+func send_candidate(id : int, mid : String, index : int, sdp : String) -> int:
+	return _send_msg("C", id, "\n%s\n%d\n%s" % [mid, index, sdp])
 
 func send_offer(id : int, offer : String) -> int:
 	return _send_msg("O", id, offer)
