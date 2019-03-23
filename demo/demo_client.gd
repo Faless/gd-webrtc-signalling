@@ -80,3 +80,20 @@ func answer_received(id : int, answer : String):
 func candidate_received(id : int, mid : String, index : int, sdp : String):
 	if peers.has(id):
 		peers[id].add_ice_candidate(mid, index, sdp)
+
+func generate_multiplayer_peer():
+	if peers.size() < 1:
+		return
+	var server : int = peer_id
+	var multi : WebRTCMultiplayer = WebRTCMultiplayer.new()
+	var keys : Array = peers.keys()
+	keys.sort()
+	if keys[0] < peer_id:
+		multi.create_client(peers[keys[0]], peer_id)
+	else:
+		multi.create_server(peers.size())
+	for id in keys:
+		if id == server:
+			continue
+		multi.accept_peer(peers[id], id)
+	return multi
