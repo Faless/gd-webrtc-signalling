@@ -4,38 +4,30 @@ var peers : Dictionary = {}
 var connected_peers = []
 var peer_id : int = -1
 onready var client = $WSClient
+var rtc_mp : WebRTCMultiplayer = WebRTCMultiplayer.new()
 
 func start():
 	stop()
 	client.connect_to_url("ws://localhost:8080")
 
 func stop():
-	client.close()
 	peers.clear()
+	rtc_mp.close()
 	client.close()
-
-func get_peer(id : int) -> WebRTCPeer:
-	if not connected_peers.has(id) or not peers.has(id):
-		return null
-	return peers[id]
 
 func _physics_process(delta):
-	for id in peers:
-		var c : WebRTCPeer = peers[id]
-		c.poll()
-		if c.get_connection_state() == WebRTCPeer.STATE_CONNECTED:
-			if not connected_peers.has(id):
-				connected_peers.append(id)
-				c.put_packet(("Hello from %d" % id).utf8())
-		if c.get_available_packet_count() > 0:
-			print("Got packet from %d: %s" % [id, c.get_packet().get_string_from_utf8()])
+	rtc_mp.poll()
+	while rtc_mp.get_available_packet_count() > 0:
+		print(rtc_mp.get_packet().get_string_from_utf8())
 
 func _create_peer(id : int):
-	var peer : WebRTCPeer = WebRTCPeer.new()
-	if OS.get_name() != "HTML5":
-		peer = load("res://demo/webrtc/webrtc.gdns").new()
-	peer.connect("offer_created", self, "_offer_created", [id])
-	peer.connect("new_ice_candidate", self, "_new_ice_candidate", [id])
+	var peer : WebRTCPeerConnection = WebRTCPeerConnection.new()
+	peer.initialize({
+		"iceServers": [ { "urls": ["stun:stun.l.google.com:19302"] } ]
+	})
+	peer.connect("session_description_created", self, "_offer_created", [id])
+	peer.connect("ice_candidate_created", self, "_new_ice_candidate", [id])
+	rtc_mp.add_remote_peer(peer, id)
 	if id > peer_id:
 		peer.create_offer()
 	return peer
@@ -54,6 +46,7 @@ func _offer_created(type : String, data : String, id : int):
 		client.send_answer(id, data)
 
 func connected(id : int):
+	rtc_mp.initialize(id)
 	peer_id = id
 
 func disconnected():
@@ -80,20 +73,3 @@ func answer_received(id : int, answer : String):
 func candidate_received(id : int, mid : String, index : int, sdp : String):
 	if peers.has(id):
 		peers[id].add_ice_candidate(mid, index, sdp)
-
-func generate_multiplayer_peer():
-	if peers.size() < 1:
-		return
-	var server : int = peer_id
-	var multi : WebRTCMultiplayer = WebRTCMultiplayer.new()
-	var keys : Array = peers.keys()
-	keys.sort()
-	if keys[0] < peer_id:
-		multi.create_client(peers[keys[0]], peer_id)
-	else:
-		multi.create_server(peers.size())
-	for id in keys:
-		if id == server:
-			continue
-		multi.accept_peer(peers[id], id)
-	return multi

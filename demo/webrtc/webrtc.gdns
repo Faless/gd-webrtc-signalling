@@ -4,6 +4,5 @@
 
 [resource]
 resource_name = "WebRTCPeer"
-class_name = "WebRTCLibPeer"
+class_name = "WebRTCLibPeerConnection"
 library = ExtResource( 1 )
-
