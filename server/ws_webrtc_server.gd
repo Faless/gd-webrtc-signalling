@@ -2,6 +2,7 @@ extends Node
 
 var server : WebSocketServer = WebSocketServer.new()
 var peers : Array = []
+var host = -1
 
 signal identify(id, data)
 
@@ -22,11 +23,15 @@ func poll():
 
 func _peer_connected(id : int, protocol = ""):
 	var new_peer : WebSocketPeer = server.get_peer(id)
-	server.get_peer(id).put_packet(("I: %d\n" % id).to_utf8())
+	var assigned = id
+	if host == -1:
+		host = id
+		assigned = NetworkedMultiplayerPeer.TARGET_PEER_SERVER
+	server.get_peer(id).put_packet(("I: %d\n" % assigned).to_utf8())
 	for p in peers:
 		var peer : WebSocketPeer = server.get_peer(p)
-		peer.put_packet(("N: %d\n" % id).to_utf8())
-		new_peer.put_packet(("N: %d\n" % p).to_utf8())
+		peer.put_packet(("N: %d\n" % assigned).to_utf8())
+		new_peer.put_packet(("N: %d\n" % (1 if p == host else p)).to_utf8())
 	peers.append(id)
 
 func _peer_disconnected(id : int, was_clean : bool = false):
@@ -34,7 +39,8 @@ func _peer_disconnected(id : int, was_clean : bool = false):
 		if p == id:
 			continue
 		var peer : WebSocketPeer = server.get_peer(p)
-		peer.put_packet(("D: %d\n" % id).to_utf8())
+		var dest = 1 if id == host else id
+		peer.put_packet(("D: %d\n" % dest).to_utf8())
 	peers.erase(id)
 
 func _parse_msg(id : int):
@@ -53,8 +59,12 @@ func _parse_msg(id : int):
 		return
 
 	var dest_id : int = int(dest_str)
+	if dest_id == NetworkedMultiplayerPeer.TARGET_PEER_SERVER:
+		dest_id = host
 	if not peers.has(dest_id): # Destination ID not connected
 		return
+	if id == host:
+		id = NetworkedMultiplayerPeer.TARGET_PEER_SERVER
 
 	if type.begins_with("O: "):
 		# Client is making an offer
