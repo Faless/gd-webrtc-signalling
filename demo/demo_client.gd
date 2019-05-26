@@ -59,7 +59,6 @@ func peer_disconnected(id : int):
 func offer_received(id : int, offer : String):
 	print("Got offer: %d" % id)
 	if rtc_mp.has_peer(id):
-		print("creating answer")
 		rtc_mp.get_peer(id).connection.set_remote_description("offer", offer)
 
 func answer_received(id : int, answer : String):
@@ -70,6 +69,3 @@ func answer_received(id : int, answer : String):
 func candidate_received(id : int, mid : String, index : int, sdp : String):
 	if rtc_mp.has_peer(id):
 		rtc_mp.get_peer(id).connection.add_ice_candidate(mid, index, sdp)
-
-func lobby_joined(lobby):
-	print("Joined lobby %s" % lobby)
