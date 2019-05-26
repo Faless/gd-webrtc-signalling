@@ -1,7 +1,11 @@
 extends Node
 
+export var autojoin = true
+export var lobby = "" # Will create a new lobby if empty
+
 var client : WebSocketClient = WebSocketClient.new()
 
+signal lobby_joined(lobby)
 signal connected(id)
 signal disconnected()
 signal peer_connected(id)
@@ -13,6 +17,7 @@ signal candidate_received(id, mid, index, sdp)
 func connect_to_url(url : String):
 	client = WebSocketClient.new()
 	client.connect("data_received", self, "_parse_msg")
+	client.connect("connection_established", self, "_connected")
 	client.connect("connection_closed", self, "_closed")
 	client.connect("connection_failed", self, "_closed")
 	client.connect_to_url(url)
@@ -23,6 +28,10 @@ func close():
 func _closed(was_clean : bool = false):
 	emit_signal("disconnected")
 
+func _connected(protocol = ""):
+	if autojoin:
+		join_lobby(lobby)
+
 func _parse_msg():
 	var pkt_str : String = client.get_peer(1).get_packet().get_string_from_utf8()
 
@@ -32,6 +41,10 @@ func _parse_msg():
 
 	var type : String = req[0]
 	if type.length() < 3: # Invalid type size
+		return
+
+	if type.begins_with("J: "):
+		emit_signal("lobby_joined", type.substr(3, type.length() - 3))
 		return
 
 	var src_str : String = type.substr(3, type.length() - 3)
@@ -62,6 +75,9 @@ func _parse_msg():
 		if not candidate[1].is_valid_integer():
 			return
 		emit_signal("candidate_received", src_id, candidate[0], int(candidate[1]), candidate[2])
+
+func join_lobby(lobby : String):
+	return client.get_peer(1).put_packet(("J: %s\n" % lobby).to_utf8())
 
 func send_candidate(id : int, mid : String, index : int, sdp : String) -> int:
 	return _send_msg("C", id, "\n%s\n%d\n%s" % [mid, index, sdp])
