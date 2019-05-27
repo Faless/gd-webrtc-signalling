@@ -14,12 +14,14 @@ signal offer_received(id, offer)
 signal answer_received(id, answer)
 signal candidate_received(id, mid, index, sdp)
 
-func connect_to_url(url : String):
-	client = WebSocketClient.new()
+func _init():
 	client.connect("data_received", self, "_parse_msg")
 	client.connect("connection_established", self, "_connected")
 	client.connect("connection_closed", self, "_closed")
 	client.connect("connection_failed", self, "_closed")
+
+func connect_to_url(url : String):
+	close()
 	client.connect_to_url(url)
 
 func close():
@@ -29,6 +31,7 @@ func _closed(was_clean : bool = false):
 	emit_signal("disconnected")
 
 func _connected(protocol = ""):
+	client.get_peer(1).set_write_mode(WebSocketPeer.WRITE_MODE_TEXT)
 	if autojoin:
 		join_lobby(lobby)
 
