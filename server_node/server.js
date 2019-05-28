@@ -1,6 +1,8 @@
 const WebSocket = require("ws");
 const crypto = require("crypto");
 
+const MAX_PEERS = 4096;
+const MAX_LOBBIES = 1024;
 const PORT = 8080;
 const ALFNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -69,10 +71,15 @@ class Lobby {
 }
 
 const lobbies = {};
+let peersCount = 0;
 
 function joinLobby (peer, pLobby) {
 	let lobby = pLobby;
 	if (lobby === "") {
+		if (Object.keys(lobbies).length >= MAX_LOBBIES) {
+			console.log("Too many lobbies open, disconnecting");
+			return false;
+		}
 		// Peer must not already be in a lobby
 		if (peer.lobby !== "") return false;
 		lobby = randomSecret();
@@ -129,6 +136,12 @@ function parseMsg (peer, msg) {
 }
 
 wss.on("connection", (ws) => {
+	if (peersCount >= MAX_PEERS) {
+		console.log("Max peers count reached, refusing connection");
+		ws.close();
+		return;
+	}
+	peersCount++;
 	const id = randomId();
 	const peer = new Peer(id, ws);
 	ws.on("message", (message) => {
@@ -143,9 +156,10 @@ wss.on("connection", (ws) => {
 		}
 	});
 	ws.on("close", (code, reason) => {
+		peersCount--;
 		console.log(`Connection with peer ${peer.id} closed ` +
 			`with reason ${code}: ${reason}`);
-		if (peer.lobby && (peer.lobby in lobbies) &&
+		if (peer.lobby && peer.lobby in lobbies &&
 			lobbies[peer.lobby].leave(peer)) {
 			delete lobbies[peer.lobby];
 			console.log(`Deleted lobby ${peer.lobby}`);
