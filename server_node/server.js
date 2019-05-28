@@ -17,7 +17,7 @@ function randomId () {
 function randomSecret () {
 	let out = "";
 	for (let i = 0; i < 32; i++) {
-		out += ALFNUM[randomInt(0, ALFNUM.length)];
+		out += ALFNUM[randomInt(0, ALFNUM.length-1)];
 	}
 	return out;
 }
