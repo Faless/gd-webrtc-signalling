@@ -18,7 +18,7 @@ func _init():
 	client.connect("data_received", self, "_parse_msg")
 	client.connect("connection_established", self, "_connected")
 	client.connect("connection_closed", self, "_closed")
-	client.connect("connection_failed", self, "_closed")
+	client.connect("connection_error", self, "_closed")
 
 func connect_to_url(url : String):
 	close()
