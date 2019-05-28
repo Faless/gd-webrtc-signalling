@@ -27,6 +27,10 @@ class Peer {
 		this.id = id;
 		this.ws = ws;
 		this.lobby = "";
+		// Close connection after 1 sec if client has not joined a lobby
+		setTimeout(() => {
+			if (!this.lobby) ws.close();
+		}, 1000);
 	}
 }
 
