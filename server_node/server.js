@@ -145,7 +145,7 @@ wss.on("connection", (ws) => {
 	ws.on("close", (code, reason) => {
 		console.log(`Connection with peer ${peer.id} closed ` +
 			`with reason ${code}: ${reason}`);
-		if (peer.lobby && !(peer.lobby in lobbies) &&
+		if (peer.lobby && (peer.lobby in lobbies) &&
 			lobbies[peer.lobby].leave(peer)) {
 			delete lobbies[peer.lobby];
 			console.log(`Deleted lobby ${peer.lobby}`);
