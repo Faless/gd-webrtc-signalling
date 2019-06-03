@@ -6,6 +6,10 @@ const MAX_LOBBIES = 1024;
 const PORT = 9080;
 const ALFNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+const NO_LOBBY_TIMEOUT = 1000;
+const SEAL_CLOSE_TIMEOUT = 10000;
+const PING_INTERVAL = 10000;
+
 const STR_NO_LOBBY = "Have not joined lobby yet";
 const STR_HOST_DISCONNECTED = "Room host has disconnected";
 const STR_ONLY_HOST_CAN_SEAL = "Only host can seal the lobby";
@@ -55,7 +59,7 @@ class Peer {
 		// Close connection after 1 sec if client has not joined a lobby
 		this.timeout = setTimeout(() => {
 			if (!this.lobby) ws.close(4000, STR_NO_LOBBY);
-		}, 1000);
+		}, NO_LOBBY_TIMEOUT);
 	}
 }
 
@@ -115,7 +119,7 @@ class Lobby {
 			this.peers.forEach((p) => {
 				p.ws.close(1000, STR_SEAL_COMPLETE);
 			});
-		}, 10000);
+		}, SEAL_CLOSE_TIMEOUT);
 	}
 }
 
@@ -245,4 +249,4 @@ const interval = setInterval(() => { // eslint-disable-line no-unused-vars
 	wss.clients.forEach((ws) => {
 		ws.ping();
 	});
-}, 10000);
+}, PING_INTERVAL);
