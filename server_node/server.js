@@ -3,7 +3,7 @@ const crypto = require("crypto");
 
 const MAX_PEERS = 4096;
 const MAX_LOBBIES = 1024;
-const PORT = 8080;
+const PORT = 9080;
 const ALFNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
 function randomInt (low, high) {
@@ -16,7 +16,7 @@ function randomId () {
 
 function randomSecret () {
 	let out = "";
-	for (let i = 0; i < 32; i++) {
+	for (let i = 0; i < 16; i++) {
 		out += ALFNUM[randomInt(0, ALFNUM.length-1)];
 	}
 	return out;
@@ -170,3 +170,10 @@ wss.on("connection", (ws) => {
 		console.error(error);
 	});
 });
+
+const noop = function() {};
+const interval = setInterval(function ping() {
+  wss.clients.forEach(function each(ws) {
+    ws.ping(noop);
+  });
+}, 10000);
