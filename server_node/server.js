@@ -68,6 +68,14 @@ class Lobby {
 		this.peers.splice(idx, 1);
 		return close;
 	}
+	seal (peer) {
+		// Only host can seal
+		if (peer.id !== this.host) return false;
+		this.peers.forEach((p) => {
+			p.ws.send("S: \n");
+		});
+		return true;
+	}
 }
 
 const lobbies = {};
@@ -109,6 +117,15 @@ function parseMsg (peer, msg) {
 		return joinLobby(peer, cmd.substr(3).trim());
 	}
 
+	if (!peer.lobby) return false; // Peer is not in a lobby.
+	const lobby = lobbies[peer.lobby];
+	if (!lobby) return false; // Peer is in an invalid lobby.
+
+	// Lobby sealing.
+	if (cmd.startsWith("S: ")) {
+		return lobby.seal(peer);
+	}
+
 	// Message relaying format:
 	//
 	// [O|A|C]: DEST_ID\n
@@ -117,9 +134,6 @@ function parseMsg (peer, msg) {
 	// O: Client is sending an offer.
 	// A: Client is sending an answer.
 	// C: Client is sending a candidate.
-	if (!peer.lobby) return false; // Peer is not in a lobby.
-	const lobby = lobbies[peer.lobby];
-	if (!lobby) return false; // Peer is in an invalid lobby.
 	let destId = parseInt(cmd.substr(3).trim());
 	if (!destId) return false; // Dest is not an ID.
 	if (destId === 1) destId = lobby.host;
