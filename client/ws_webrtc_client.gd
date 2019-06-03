@@ -4,6 +4,8 @@ export var autojoin = true
 export var lobby = "" # Will create a new lobby if empty
 
 var client : WebSocketClient = WebSocketClient.new()
+var code = 1000
+var reason = "Unknown"
 
 signal lobby_joined(lobby)
 signal connected(id)
@@ -20,16 +22,23 @@ func _init():
 	client.connect("connection_established", self, "_connected")
 	client.connect("connection_closed", self, "_closed")
 	client.connect("connection_error", self, "_closed")
+	client.connect("server_close_request", self, "_close_request")
 
 func connect_to_url(url : String):
 	close()
 	client.connect_to_url(url)
 
 func close():
+	code = 1000
+	reason = "Unknown"
 	client.disconnect_from_host()
 
 func _closed(was_clean : bool = false):
 	emit_signal("disconnected")
+
+func _close_request(code : int, reason : String):
+	self.code = code
+	self.reason = reason
 
 func _connected(protocol = ""):
 	client.get_peer(1).set_write_mode(WebSocketPeer.WRITE_MODE_TEXT)
