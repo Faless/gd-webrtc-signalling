@@ -13,6 +13,7 @@ signal peer_disconnected(id)
 signal offer_received(id, offer)
 signal answer_received(id, answer)
 signal candidate_received(id, mid, index, sdp)
+signal lobby_sealed()
 
 func _init():
 	client.connect("data_received", self, "_parse_msg")
@@ -49,6 +50,9 @@ func _parse_msg():
 	if type.begins_with("J: "):
 		emit_signal("lobby_joined", type.substr(3, type.length() - 3))
 		return
+	elif type.begins_with("S: "):
+		emit_signal("lobby_sealed")
+		return
 
 	var src_str : String = type.substr(3, type.length() - 3)
 	if not src_str.is_valid_integer(): # Source id is not an integer
@@ -81,6 +85,9 @@ func _parse_msg():
 
 func join_lobby(lobby : String):
 	return client.get_peer(1).put_packet(("J: %s\n" % lobby).to_utf8())
+
+func seal_lobby():
+	return client.get_peer(1).put_packet("S: \n".to_utf8())
 
 func send_candidate(id : int, mid : String, index : int, sdp : String) -> int:
 	return _send_msg("C", id, "\n%s\n%d\n%s" % [mid, index, sdp])
