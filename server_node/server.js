@@ -17,7 +17,7 @@ function randomId () {
 function randomSecret () {
 	let out = "";
 	for (let i = 0; i < 16; i++) {
-		out += ALFNUM[randomInt(0, ALFNUM.length-1)];
+		out += ALFNUM[randomInt(0, ALFNUM.length - 1)];
 	}
 	return out;
 }
@@ -171,9 +171,8 @@ wss.on("connection", (ws) => {
 	});
 });
 
-const noop = function() {};
-const interval = setInterval(function ping() {
-  wss.clients.forEach(function each(ws) {
-    ws.ping(noop);
-  });
+const interval = setInterval(() => { // eslint-disable-line no-unused-vars
+	wss.clients.forEach((ws) => {
+		ws.ping();
+	});
 }, 10000);
