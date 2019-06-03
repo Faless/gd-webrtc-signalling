@@ -83,29 +83,31 @@ class Lobby {
 	}
 }
 
-const lobbies = {};
+const lobbies = new Map();
 let peersCount = 0;
 
 function joinLobby (peer, pLobby) {
-	let lobby = pLobby;
-	if (lobby === "") {
-		if (Object.keys(lobbies).length >= MAX_LOBBIES) {
+	let lobbyName = pLobby;
+	if (lobbyName === "") {
+		if (lobbies.size >= MAX_LOBBIES) {
 			console.log("Too many lobbies open, disconnecting");
 			return false;
 		}
 		// Peer must not already be in a lobby
 		if (peer.lobby !== "") return false;
-		lobby = randomSecret();
-		lobbies[lobby] = new Lobby(lobby, peer.id);
-	} else if (!(lobby in lobbies)) {
-		return false; // Lobby does not exists
+		lobbyName = randomSecret();
+		lobbies.set(lobbyName, new Lobby(lobbyName, peer.id));
+		console.log(`Peer ${peer.id} created lobby ${lobbyName}`);
+		console.log(`Open lobbies: ${lobbies.size}`);
 	}
-	peer.lobby = lobby;
-	if (lobbies[lobby].sealed) return false;
-	console.log(`Peer ${peer.id} joining lobby ${lobby} ` +
-		`with ${lobbies[lobby].peers.length} peers`);
-	lobbies[lobby].join(peer);
-	peer.ws.send(`J: ${lobby}\n`);
+	const lobby = lobbies.get(lobbyName);
+	if (!lobby) return false; // Lobby does not exists
+	if (lobby.sealed) return false; // Lobby is sealed
+	peer.lobby = lobbyName;
+	console.log(`Peer ${peer.id} joining lobby ${lobbyName} ` +
+		`with ${lobby.peers.length} peers`);
+	lobby.join(peer);
+	peer.ws.send(`J: ${lobbyName}\n`);
 	return true;
 }
 
@@ -124,7 +126,7 @@ function parseMsg (peer, msg) {
 	}
 
 	if (!peer.lobby) return false; // Peer is not in a lobby.
-	const lobby = lobbies[peer.lobby];
+	const lobby = lobbies.get(peer.lobby);
 	if (!lobby) return false; // Peer is in an invalid lobby.
 
 	// Lobby sealing.
@@ -143,7 +145,7 @@ function parseMsg (peer, msg) {
 	let destId = parseInt(cmd.substr(3).trim());
 	if (!destId) return false; // Dest is not an ID.
 	if (destId === 1) destId = lobby.host;
-	const dest = lobbies[peer.lobby].peers.find((e) => e.id === destId);
+	const dest = lobby.peers.find((e) => e.id === destId);
 	if (!dest) return false; // Dest is not in this room.
 
 	function isCmd (what) {
@@ -179,10 +181,11 @@ wss.on("connection", (ws) => {
 		peersCount--;
 		console.log(`Connection with peer ${peer.id} closed ` +
 			`with reason ${code}: ${reason}`);
-		if (peer.lobby && peer.lobby in lobbies &&
-			lobbies[peer.lobby].leave(peer)) {
-			delete lobbies[peer.lobby];
+		if (peer.lobby && lobbies.has(peer.lobby) &&
+			lobbies.get(peer.lobby).leave(peer)) {
+			lobbies.delete(peer.lobby);
 			console.log(`Deleted lobby ${peer.lobby}`);
+			console.log(`Open lobbies: ${lobbies.size}`);
 			peer.lobby = "";
 		}
 	});
