@@ -86,7 +86,7 @@ class Lobby {
 		console.log(`Peer ${peer.id} sealed lobby ${this.name} ` +
 			`with ${this.peers.length} peers`);
 		this.closeTimer = setTimeout(() => {
-			peer.ws.close(); // Close the peer connection (and thus the lobby)
+			peer.ws.close(); // Close peer connection (and lobby)
 		}, 10000);
 		return true;
 	}
