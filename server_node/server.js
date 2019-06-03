@@ -40,6 +40,7 @@ class Lobby {
 	constructor (host) {
 		this.host = host;
 		this.peers = [];
+		this.sealed = false;
 	}
 	getPeerId (peer) {
 		if (this.host === peer.id) return 1;
@@ -71,6 +72,7 @@ class Lobby {
 	seal (peer) {
 		// Only host can seal
 		if (peer.id !== this.host) return false;
+		this.sealed = true;
 		this.peers.forEach((p) => {
 			p.ws.send("S: \n");
 		});
@@ -96,6 +98,7 @@ function joinLobby (peer, pLobby) {
 		return false; // Lobby does not exists
 	}
 	peer.lobby = lobby;
+	if (lobbies[lobby].sealed) return false;
 	console.log(`Peer ${peer.id} joining lobby ${lobby} ` +
 		`with ${lobbies[lobby].peers.length} peers`);
 	lobbies[lobby].join(peer);
