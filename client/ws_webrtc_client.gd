@@ -26,11 +26,11 @@ func _init():
 
 func connect_to_url(url : String):
 	close()
+	code = 1000
+	reason = "Unknown"
 	client.connect_to_url(url)
 
 func close():
-	code = 1000
-	reason = "Unknown"
 	client.disconnect_from_host()
 
 func _closed(was_clean : bool = false):
