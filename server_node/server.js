@@ -37,7 +37,8 @@ class Peer {
 }
 
 class Lobby {
-	constructor (host) {
+	constructor (name, host) {
+		this.name = name;
 		this.host = host;
 		this.peers = [];
 		this.sealed = false;
@@ -76,6 +77,8 @@ class Lobby {
 		this.peers.forEach((p) => {
 			p.ws.send("S: \n");
 		});
+		console.log(`Peer ${peer.id} sealed lobby ${this.name} ` +
+			`with ${this.peers.length} peers`);
 		return true;
 	}
 }
@@ -93,7 +96,7 @@ function joinLobby (peer, pLobby) {
 		// Peer must not already be in a lobby
 		if (peer.lobby !== "") return false;
 		lobby = randomSecret();
-		lobbies[lobby] = new Lobby(peer.id);
+		lobbies[lobby] = new Lobby(lobby, peer.id);
 	} else if (!(lobby in lobbies)) {
 		return false; // Lobby does not exists
 	}
