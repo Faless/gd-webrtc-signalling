@@ -30,7 +30,7 @@ class Peer {
 		this.ws = ws;
 		this.lobby = "";
 		// Close connection after 1 sec if client has not joined a lobby
-		setTimeout(() => {
+		this.timeout = setTimeout(() => {
 			if (!this.lobby) ws.close();
 		}, 1000);
 	}
@@ -42,6 +42,7 @@ class Lobby {
 		this.host = host;
 		this.peers = [];
 		this.sealed = false;
+		this.closeTimer = -1;
 	}
 	getPeerId (peer) {
 		if (this.host === peer.id) return 1;
@@ -68,6 +69,11 @@ class Lobby {
 			else p.ws.send(`D: ${assigned}\n`);
 		});
 		this.peers.splice(idx, 1);
+		if (close && this.closeTimer >= 0) {
+			// We are closing already.
+			clearTimeout(this.closeTimer);
+			this.closeTimer = -1;
+		}
 		return close;
 	}
 	seal (peer) {
@@ -79,6 +85,9 @@ class Lobby {
 		});
 		console.log(`Peer ${peer.id} sealed lobby ${this.name} ` +
 			`with ${this.peers.length} peers`);
+		this.closeTimer = setTimeout(() => {
+			peer.ws.close(); // Close the peer connection (and thus the lobby)
+		}, 10000);
 		return true;
 	}
 }
@@ -187,6 +196,10 @@ wss.on("connection", (ws) => {
 			console.log(`Deleted lobby ${peer.lobby}`);
 			console.log(`Open lobbies: ${lobbies.size}`);
 			peer.lobby = "";
+		}
+		if (peer.timeout >= 0) {
+			clearTimeout(peer.timeout);
+			peer.timeout = -1;
 		}
 	});
 	ws.on("error", (error) => {
