@@ -1,22 +1,30 @@
-extends Node
+extends "ws_webrtc_client.gd"
 
-var peer_id : int = -1
-onready var client = $WSClient
 var rtc_mp : WebRTCMultiplayer = WebRTCMultiplayer.new()
+var sealed = false
+
+func _init():
+	connect("connected", self, "connected")
+	connect("disconnected", self, "disconnected")
+
+	connect("offer_received", self, "offer_received")
+	connect("answer_received", self, "answer_received")
+	connect("candidate_received", self, "candidate_received")
+
+	connect("lobby_joined", self, "lobby_joined")
+	connect("lobby_sealed", self, "lobby_sealed")
+	connect("peer_connected", self, "peer_connected")
+	connect("peer_disconnected", self, "peer_disconnected")
 
 func start(url, lobby = ""):
 	stop()
-	client.lobby = lobby
-	client.connect_to_url(url)
+	sealed = false
+	self.lobby = lobby
+	connect_to_url(url)
 
 func stop():
 	rtc_mp.close()
-	client.close()
-
-func _physics_process(delta):
-	rtc_mp.poll()
-	while rtc_mp.get_available_packet_count() > 0:
-		print(rtc_mp.get_packet().get_string_from_utf8())
+	close()
 
 func _create_peer(id : int):
 	var peer : WebRTCPeerConnection = WebRTCPeerConnection.new()
@@ -31,23 +39,30 @@ func _create_peer(id : int):
 	return peer
 
 func _new_ice_candidate(mid_name : String, index_name : int, sdp_name : String, id : int):
-	client.send_candidate(id, mid_name, index_name, sdp_name)
+	send_candidate(id, mid_name, index_name, sdp_name)
 
 func _offer_created(type : String, data : String, id : int):
 	if not rtc_mp.has_peer(id):
 		return
 	print("created", type)
 	rtc_mp.get_peer(id).connection.set_local_description(type, data)
-	if type == "offer": client.send_offer(id, data)
-	else: client.send_answer(id, data)
+	if type == "offer": send_offer(id, data)
+	else: send_answer(id, data)
 
 func connected(id : int):
 	print("Connected %d" % id)
-	rtc_mp.initialize(id, true)
+	rtc_mp.initialize(id)
+
+func lobby_joined(lobby : String):
+	self.lobby = lobby
+
+func lobby_sealed():
+	sealed = true
 
 func disconnected():
 	print("Disconnected")
-	stop() # Or not? We could close the connection to the signaling server once the peers are all connected
+	if not sealed:
+		stop() # Or not? We could close the connection to the signaling server once the peers are all connected
 
 func peer_connected(id : int):
 	print("Peer connected %d" % id)
