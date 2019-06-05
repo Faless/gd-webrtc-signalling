@@ -51,7 +51,7 @@ func _offer_created(type : String, data : String, id : int):
 
 func connected(id : int):
 	print("Connected %d" % id)
-	rtc_mp.initialize(id)
+	rtc_mp.initialize(id, true)
 
 func lobby_joined(lobby : String):
 	self.lobby = lobby
