@@ -73,6 +73,9 @@ var host = -1
 
 signal identify(id, data)
 
+func _process(delta):
+	poll()
+
 func listen(port : int):
 	stop()
 	rand.seed = OS.get_unix_time()
@@ -86,8 +89,10 @@ func stop():
 	peers.clear()
 
 func poll():
-	if server.is_listening():
-		server.poll()
+	if not server.is_listening():
+		return
+
+	server.poll()
 
 	# Peers timeout
 	for p in peers.values():
