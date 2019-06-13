@@ -73,15 +73,17 @@ var host = -1
 
 signal identify(id, data)
 
+func _init():
+	server.connect("data_received", self, "_on_data")
+	server.connect("client_connected", self, "_peer_connected")
+	server.connect("client_disconnected", self, "_peer_disconnected")
+
 func _process(delta):
 	poll()
 
 func listen(port : int):
 	stop()
 	rand.seed = OS.get_unix_time()
-	server.connect("data_received", self, "_on_data")
-	server.connect("client_connected", self, "_peer_connected")
-	server.connect("client_disconnected", self, "_peer_disconnected")
 	server.listen(port)
 
 func stop():
