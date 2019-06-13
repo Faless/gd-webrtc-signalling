@@ -24,19 +24,20 @@ class Lobby extends Reference:
 	func _init(host_id : int):
 		host = host_id
 
-	func join(peer_id : int, server : WebSocketServer):
-		if not server.has_peer(peer_id): return
+	func join(peer_id : int, server : WebSocketServer) -> bool:
+		if sealed: return false
+		if not server.has_peer(peer_id): return false
 		var new_peer : WebSocketPeer = server.get_peer(peer_id)
 		new_peer.put_packet(("I: %d\n" % (1 if peer_id == host else peer_id)).to_utf8())
 		for p in peers:
 			if not server.has_peer(p):
-				return
+				continue
 			server.get_peer(p).put_packet(("N: %d\n" % peer_id).to_utf8())
 			new_peer.put_packet(("N: %d\n" % (1 if p == host else p)).to_utf8())
-			pass
 		peers.push_back(peer_id)
+		return true
 
-	func leave(peer_id : int, server : WebSocketServer):
+	func leave(peer_id : int, server : WebSocketServer) -> bool:
 		if not peers.has(peer_id): return false
 		peers.erase(peer_id)
 		var close = false
@@ -55,13 +56,14 @@ class Lobby extends Reference:
 				server.get_peer(p).put_packet(("D: %d\n" % peer_id).to_utf8())
 		return close
 
-	func seal(peer_id : int, server : WebSocketServer):
+	func seal(peer_id : int, server : WebSocketServer) -> bool:
 		# Only host can seal the room
 		if host != peer_id: return false
 		sealed = true
 		for p in peers:
 			server.get_peer(p).put_packet("S: \n".to_utf8())
 		time = OS.get_ticks_msec()
+		return true
 
 var rand : RandomNumberGenerator = RandomNumberGenerator.new()
 var lobbies : Dictionary = {}
@@ -74,7 +76,7 @@ signal identify(id, data)
 func listen(port : int):
 	stop()
 	rand.seed = OS.get_unix_time()
-	server.connect("data_received", self, "_parse_msg")
+	server.connect("data_received", self, "_on_data")
 	server.connect("client_connected", self, "_peer_connected")
 	server.connect("client_disconnected", self, "_peer_disconnected")
 	server.listen(port)
@@ -96,6 +98,7 @@ func poll():
 		if not lobbies[k].sealed:
 			continue
 		if lobbies[k].time + SEAL_TIME < OS.get_ticks_msec():
+			# Close lobby
 			for p in lobbies[k].peers:
 				server.disconnect_peer(p)
 
@@ -104,10 +107,12 @@ func _peer_connected(id : int, protocol = ""):
 
 func _peer_disconnected(id : int, was_clean : bool = false):
 	var lobby = peers[id].lobby
+	print("Peer %d disconnected from lobby: '%s'" % [id, lobby])
 	if lobby and lobbies.has(lobby):
 		peers[id].lobby = ""
 		if lobbies[lobby].leave(id, server):
 			# If true, lobby host has disconnected, so delete it.
+			print("Deleted lobby %s" % lobby)
 			lobbies.erase(lobby)
 	peers.erase(id)
 
@@ -120,55 +125,57 @@ func _join_lobby(peer, lobby : String) -> bool:
 		return false
 	lobbies[lobby].join(peer.id, server)
 	peer.lobby = lobby
+	# Notify peer of its lobby
+	server.get_peer(peer.id).put_packet(("J: %s\n" % lobby).to_utf8())
+	print("Peer %d joined lobby: '%s'" % [peer.id, lobby])
 	return true
 
-func _parse_msg(id : int):
+func _on_data(id : int):
+	if not _parse_msg(id):
+		print("Parse message failed from peer %d" % id)
+		server.disconnect_peer(id)
+
+func _parse_msg(id : int) -> bool:
 	var pkt_str : String = server.get_peer(id).get_packet().get_string_from_utf8()
 
 	var req : PoolStringArray = pkt_str.split('\n', true, 1)
 	if req.size() != 2: # Invalid request size
-		return
+		return false
 
 	var type : String = req[0]
 	if type.length() < 3: # Invalid type size
-		return
+		return false
 
 	if type.begins_with("J: "):
-		if not peers[id].lobby: # Peer must not have joined a lobby already!
-			if not _join_lobby(peers[id], type.substr(3, type.length() - 3)):
-				# Join has failed, disconnecting
-				server.disconnect_peer(id)
-			else:
-				# Notify peer of its lobby
-				server.get_peer(id).put_packet(("J: %s\n" % peers[id].lobby).to_utf8())
-		return
+		if peers[id].lobby: # Peer must not have joined a lobby already!
+			return false
+		return _join_lobby(peers[id], type.substr(3, type.length() - 3))
 
 	if not peers[id].lobby: # Messages across peers are only allowed in same lobby
-		return
+		return false
 
 	if not lobbies.has(peers[id].lobby): # Lobby not found?
-		return
+		return false
 
 	var lobby = lobbies[peers[id].lobby]
 
 	if type.begins_with("S: "):
 		# Client is sealing the room
-		lobby.seal(id, server)
-		return
+		return lobby.seal(id, server)
 
 	var dest_str : String = type.substr(3, type.length() - 3)
 	if not dest_str.is_valid_integer(): # Destination id is not an integer
-		return
+		return false
 
 	var dest_id : int = int(dest_str)
 	if dest_id == NetworkedMultiplayerPeer.TARGET_PEER_SERVER:
 		dest_id = lobby.host
 
 	if not peers.has(dest_id): # Destination ID not connected
-		return
+		return false
 
 	if peers[dest_id].lobby != peers[id].lobby: # Trying to contact someone not in same lobby
-		return
+		return false
 
 	if id == lobby.host:
 		id = NetworkedMultiplayerPeer.TARGET_PEER_SERVER
@@ -182,3 +189,4 @@ func _parse_msg(id : int):
 	elif type.begins_with("C: "):
 		# Client is making an answer
 		server.get_peer(dest_id).put_packet(("C: %d\n%s" % [id, req[1]]).to_utf8())
+	return true
