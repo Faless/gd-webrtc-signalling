@@ -1,13 +1,13 @@
 extends Node
 
 const TIMEOUT = 1000 # Unresponsive clients times out after 1 sec
+const SEAL_TIME = 10000 # A sealed room will be closed after this time
 const ALFNUM = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 var _alfnum = ALFNUM.to_ascii()
 
 class Peer extends Reference:
 	var id = -1
-	var pending = true
 	var lobby = ""
 	var time = OS.get_ticks_msec()
 
@@ -18,6 +18,8 @@ class Lobby extends Reference:
 	var server : WebSocketServer = null
 	var peers : Array = []
 	var host : int = -1
+	var sealed : bool = false
+	var time = 0
 
 	func _init(host_id : int):
 		host = host_id
@@ -41,6 +43,7 @@ class Lobby extends Reference:
 		if peer_id == host:
 			# The room host disconnected, will disconnect all peers
 			close = true
+		if sealed: return close
 		# Notify other peers
 		for p in peers:
 			if not server.has_peer(p): return close
@@ -52,8 +55,15 @@ class Lobby extends Reference:
 				server.get_peer(p).put_packet(("D: %d\n" % peer_id).to_utf8())
 		return close
 
+	func seal(peer_id : int, server : WebSocketServer):
+		# Only host can seal the room
+		if host != peer_id: return false
+		sealed = true
+		for p in peers:
+			server.get_peer(p).put_packet("S: \n".to_utf8())
+		time = OS.get_ticks_msec()
+
 var rand : RandomNumberGenerator = RandomNumberGenerator.new()
-var pending : Array = []
 var lobbies : Dictionary = {}
 var server : WebSocketServer = WebSocketServer.new()
 var peers : Dictionary = {}
@@ -77,12 +87,17 @@ func poll():
 	if server.is_listening():
 		server.poll()
 
-	# Lobby and timeout
+	# Peers timeout
 	for p in peers.values():
 		if p.lobby == "" and OS.get_ticks_msec() - p.time > TIMEOUT:
-			#server.get_peer(p.id).close()
 			server.disconnect_peer(p.id)
-			pass
+	# Lobby seal
+	for k in lobbies:
+		if not lobbies[k].sealed:
+			continue
+		if lobbies[k].time + SEAL_TIME < OS.get_ticks_msec():
+			for p in lobbies[k].peers:
+				server.disconnect_peer(p)
 
 func _peer_connected(id : int, protocol = ""):
 	peers[id] = Peer.new(id)
@@ -131,19 +146,31 @@ func _parse_msg(id : int):
 	if not peers[id].lobby: # Messages across peers are only allowed in same lobby
 		return
 
-	var lobby = peers[id].lobby
+	if not lobbies.has(peers[id].lobby): # Lobby not found?
+		return
+
+	var lobby = lobbies[peers[id].lobby]
+
+	if type.begins_with("S: "):
+		# Client is sealing the room
+		lobby.seal(id, server)
+		return
+
 	var dest_str : String = type.substr(3, type.length() - 3)
 	if not dest_str.is_valid_integer(): # Destination id is not an integer
 		return
 
 	var dest_id : int = int(dest_str)
 	if dest_id == NetworkedMultiplayerPeer.TARGET_PEER_SERVER:
-		dest_id = lobbies[lobby].host
+		dest_id = lobby.host
+
 	if not peers.has(dest_id): # Destination ID not connected
 		return
-	if peers[dest_id].lobby != lobby: # Trying to contact someone not in same lobby
+
+	if peers[dest_id].lobby != peers[id].lobby: # Trying to contact someone not in same lobby
 		return
-	if id == lobbies[lobby].host:
+
+	if id == lobby.host:
 		id = NetworkedMultiplayerPeer.TARGET_PEER_SERVER
 
 	if type.begins_with("O: "):

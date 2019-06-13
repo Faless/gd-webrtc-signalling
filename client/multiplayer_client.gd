@@ -62,7 +62,7 @@ func lobby_sealed():
 func disconnected():
 	print("Disconnected: %d: %s" % [code, reason])
 	if not sealed:
-		stop() # Or not? We could close the connection to the signaling server once the peers are all connected
+		stop() # Unexpected disconnect
 
 func peer_connected(id : int):
 	print("Peer connected %d" % id)
